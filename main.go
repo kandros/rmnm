@@ -24,10 +24,7 @@ func main() {
 	var foldersToCheck []string
 	var foldersToDelete []string
 
-	current := ""
-
 	walker := func(path string, info os.FileInfo, err error) error {
-		current = path
 		// skil first folder because it's folderPath
 		if err != nil {
 			return err
