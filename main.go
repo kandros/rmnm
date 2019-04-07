@@ -9,7 +9,14 @@ import (
 const nodeModules = "node_modules"
 
 func main() {
-	folderPath := "folders"
+	c := make(chan os.Signal)
+	go func() {
+		<-c
+		os.Exit(1)
+	}()
+
+	folderPath, _ := os.Getwd()
+
 	var foldersToCheck []string
 	var foldersToDelete []string
 
@@ -39,13 +46,17 @@ func main() {
 		filepath.Walk(f, walker)
 	}
 
+	foldersDeleted := 0
 	for _, f := range foldersToDelete {
-		fmt.Printf("deleting %s\n", f)
+		foldersDeleted++
 		err := os.RemoveAll(f)
+		fmt.Printf("💀  - deleted %s\n", f)
 		if err != nil {
 			panic(err)
 		}
 	}
+
+	fmt.Printf("\ndeleted %d node_modules folders\n", foldersDeleted)
 
 	if err != nil {
 		panic(err)
