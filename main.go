@@ -4,6 +4,10 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
+	"time"
+
+	"github.com/tj/go-spin"
 )
 
 const nodeModules = "node_modules"
@@ -20,7 +24,10 @@ func main() {
 	var foldersToCheck []string
 	var foldersToDelete []string
 
+	current := ""
+
 	walker := func(path string, info os.FileInfo, err error) error {
+		current = path
 		// skil first folder because it's folderPath
 		if err != nil {
 			return err
@@ -29,6 +36,8 @@ func main() {
 		if info.IsDir() {
 			if info.Name() == nodeModules {
 				foldersToDelete = append(foldersToDelete, path)
+
+				fmt.Printf("%s marked for deletion\n", path)
 
 				// if current folder is node_modules dont walk into it
 				return filepath.SkipDir
@@ -40,25 +49,57 @@ func main() {
 		return nil
 	}
 
-	err := filepath.Walk(folderPath, walker)
+	s := spin.New()
+	shouldSpin := true
+
+	go func() {
+		for shouldSpin {
+			fmt.Printf("\r %s", s.Next())
+			time.Sleep(100 * time.Millisecond)
+		}
+	}()
+
+	var wg sync.WaitGroup
+
+	wg.Add(1)
+	go func() {
+		filepath.Walk(folderPath, walker)
+		wg.Done()
+	}()
+
+	wg.Wait()
 
 	for _, f := range foldersToCheck {
-		filepath.Walk(f, walker)
+		x := f
+		wg.Add(1)
+		go func() {
+			filepath.Walk(x, walker)
+			wg.Done()
+		}()
 	}
+	wg.Wait()
 
 	foldersDeleted := 0
-	for _, f := range foldersToDelete {
-		foldersDeleted++
-		err := os.RemoveAll(f)
-		fmt.Printf("💀  - deleted %s\n", f)
-		if err != nil {
-			panic(err)
-		}
+
+	for i, f := range foldersToDelete {
+		a, b := i, f
+		wg.Add(1)
+		go func() {
+			foldersDeleted++
+			err := os.RemoveAll(b)
+			fmt.Printf("💀  - deleted %s\n", f)
+			if err != nil {
+				panic(err)
+			}
+			wg.Done()
+			if a == len(foldersToDelete) {
+				shouldSpin = false
+			}
+		}()
 	}
+
+	wg.Wait()
 
 	fmt.Printf("\ndeleted %d node_modules folders\n", foldersDeleted)
 
-	if err != nil {
-		panic(err)
-	}
 }
