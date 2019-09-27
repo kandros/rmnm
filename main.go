@@ -12,7 +12,7 @@ import (
 
 const nodeModules = "node_modules"
 
-func main() {
+func run() {
 	c := make(chan os.Signal)
 	go func() {
 		<-c
@@ -98,5 +98,8 @@ func main() {
 	wg.Wait()
 
 	fmt.Printf("\ndeleted %d node_modules folders\n", foldersDeleted)
+}
 
+func main() {
+	run()
 }
