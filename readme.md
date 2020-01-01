@@ -1,7 +1,13 @@
 # rmnm
 
-remove node_modules folders recursively staring from dirname
+recursively remove node_modules folders staring from dirname
 
-`rmnm {dirname}`  
-`rmnm .`  
-`rmnm ~/coding`
+## usage examples
+
+```sh
+rmnm .
+```
+
+```sh
+rmnm ~/coding
+```
