@@ -35,8 +35,8 @@ func main() {
 	wg := sync.WaitGroup{}
 	go func() {
 		for p := range foundNodeModuleChan {
+                        wg.Add(1)
 			go func(p string) {
-				wg.Add(1)
 				defer wg.Done()
 				s := folderSize(p)
 				atomic.AddUint64(&totalSize, s)
