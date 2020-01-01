@@ -2,104 +2,92 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"sync"
-	"time"
+	"sync/atomic"
 
-	"github.com/tj/go-spin"
+	"github.com/dustin/go-humanize"
+	"github.com/fatih/color"
 )
 
-const nodeModules = "node_modules"
-
-func run() {
-	c := make(chan os.Signal)
-	go func() {
-		<-c
+func main() {
+	if len(os.Args) != 2 {
+		fmt.Print("Expected first argument to be a path")
 		os.Exit(1)
+	}
+	path := os.Args[1]
+
+	// s := spin.New()
+
+	// go func() {
+	// 	for shouldSpin {
+	// 		fmt.Printf("\r %s", s.Next())
+	// 		time.Sleep(100 * time.Millisecond)
+	// 	}
+	// }()
+
+	foundNodeModuleChan := make(chan string)
+
+	var totalSize uint64 = 0
+
+	wg := sync.WaitGroup{}
+	go func() {
+		for p := range foundNodeModuleChan {
+			go func(p string) {
+				wg.Add(1)
+				defer wg.Done()
+				s := folderSize(p)
+				atomic.AddUint64(&totalSize, s)
+				err := os.RemoveAll(p)
+				if err != nil {
+					panic(err)
+				}
+
+				fmt.Printf("❌  [%s]  \"%s\" \n", humanize.Bytes(s), color.HiYellowString(p))
+			}(p)
+		}
 	}()
 
-	folderPath, _ := os.Getwd()
+	scanForNodeModules(path, foundNodeModuleChan)
+	wg.Wait()
+	fmt.Printf("\ntotal size %s", humanize.Bytes(totalSize))
 
-	var foldersToCheck []string
-	var foldersToDelete []string
+}
 
-	walker := func(path string, info os.FileInfo, err error) error {
-		// skil first folder because it's folderPath
+func isNodemoduleDir(fi os.FileInfo) bool {
+	return fi.IsDir() && fi.Name() == "node_modules"
+}
+
+func scanForNodeModules(folderPath string, foundNodeModuleChan chan<- string) {
+	filepath.Walk(folderPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
-			return err
+			log.Fatal(err)
 		}
 
-		if info.IsDir() {
-			if info.Name() == nodeModules {
-				foldersToDelete = append(foldersToDelete, path)
-
-				fmt.Printf("%s marked for deletion\n", path)
-
-				// if current folder is node_modules dont walk into it
-				return filepath.SkipDir
-			} else {
-				foldersToCheck = append(foldersToCheck, path)
-			}
+		if isNodemoduleDir(info) {
+			foundNodeModuleChan <- path
+			return filepath.SkipDir
 		}
 
 		return nil
-	}
-
-	s := spin.New()
-	shouldSpin := true
-
-	go func() {
-		for shouldSpin {
-			fmt.Printf("\r %s", s.Next())
-			time.Sleep(100 * time.Millisecond)
-		}
-	}()
-
-	var wg sync.WaitGroup
-
-	wg.Add(1)
-	go func() {
-		filepath.Walk(folderPath, walker)
-		wg.Done()
-	}()
-
-	wg.Wait()
-
-	for _, f := range foldersToCheck {
-		x := f
-		wg.Add(1)
-		go func() {
-			filepath.Walk(x, walker)
-			wg.Done()
-		}()
-	}
-	wg.Wait()
-
-	foldersDeleted := 0
-
-	for i, f := range foldersToDelete {
-		a, b := i, f
-		wg.Add(1)
-		go func() {
-			foldersDeleted++
-			err := os.RemoveAll(b)
-			fmt.Printf("💀  - deleted %s\n", f)
-			if err != nil {
-				panic(err)
-			}
-			wg.Done()
-			if a == len(foldersToDelete) {
-				shouldSpin = false
-			}
-		}()
-	}
-
-	wg.Wait()
-
-	fmt.Printf("\ndeleted %d node_modules folders\n", foldersDeleted)
+	})
 }
 
-func main() {
-	run()
+func folderSize(path string) uint64 {
+	var size int64 = 0
+	err := filepath.Walk(path, func(path string, info os.FileInfo, err error) error {
+		size += info.Size()
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+
+	if err != nil {
+		panic(err)
+	}
+
+	return uint64(size)
 }
