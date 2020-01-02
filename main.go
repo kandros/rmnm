@@ -19,6 +19,7 @@ func main() {
 	}
 	path := os.Args[1]
 
+	// shouldSpin := true
 	// s := spin.New()
 
 	// go func() {
@@ -35,7 +36,7 @@ func main() {
 	wg := sync.WaitGroup{}
 	go func() {
 		for p := range foundNodeModuleChan {
-                        wg.Add(1)
+			wg.Add(1)
 			go func(p string) {
 				defer wg.Done()
 				s := folderSize(p)
@@ -45,7 +46,7 @@ func main() {
 					panic(err)
 				}
 
-				fmt.Printf("❌  [%s]  \"%s\" \n", humanize.Bytes(s), color.HiYellowString(p))
+				fmt.Printf("\n❌  [%s]  \"%s\"", humanize.Bytes(s), color.HiYellowString(p))
 			}(p)
 		}
 	}()
